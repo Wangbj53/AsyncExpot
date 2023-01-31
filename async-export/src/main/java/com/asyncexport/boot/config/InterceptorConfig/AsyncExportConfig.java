@@ -62,7 +62,7 @@ public class AsyncExportConfig {
                     bzAsyncExportLog.setName(apiLog.name());
                     bzAsyncExportLog.setMethodPath(apiLog.methodPath());
                     bzAsyncExportLog.setSyncFlag(apiLog.syncFlag());
-                    bzAsyncExportLog.setOutMethodPath(apiLog.OutMethodPath());
+                    bzAsyncExportLog.setOutMethodPath(apiLog.outMethodPath());
                 } else if (args[i] instanceof HttpServletResponse) {
                     response = (HttpServletResponse) args[i];
                 }

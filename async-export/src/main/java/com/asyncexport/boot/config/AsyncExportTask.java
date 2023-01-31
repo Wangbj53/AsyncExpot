@@ -25,7 +25,7 @@ public @interface AsyncExportTask {
     /**
      * 二进制文件输出路径
      */
-    String OutMethodPath() default "";
+    String outMethodPath() default "";
 
     /**
      * 0:异步 或者 1:同步
