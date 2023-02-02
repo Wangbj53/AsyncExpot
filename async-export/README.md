@@ -8,10 +8,18 @@
 ### 简介：  
 该注解是基于反射加easyexcel实现的注解式导出功能，改注解分为两种模式:同步和异步导出  
 同步模式开箱即用 一行注解解决导出
+
+### 依赖配置
+```
+        <dependency>
+            <groupId></groupId>
+            <artifactId></artifactId>
+            <version></version>
+        </dependency>
+```
 ***
 ### 流程图：
-todo。。。。
-
+![img.png](img.png)
 ***
 #### 开箱配置
 1. redis（用于异步模式的lock锁,同步无需）  
