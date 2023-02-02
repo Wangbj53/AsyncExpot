@@ -41,7 +41,9 @@ public class DemoEntity {
 ```
 一个自动生成的 或者 自己系统里的分页接口（如参类型一定要是PageQuery 项目中存在改实体，返回类型可以是Page（mybatisPlus的）类型也可以是list类型）
 ![img_1.png](img_1.png)
-之后直接使用注解,方法内无需写任何代码
+
+#### 使用方法：
+  直接使用注解,方法内无需写任何代码
 ```
     @PostMapping("/export")
     @AsyncExportTask(name = "测试导出", methodPath = "demoEntityService.page",syncFlag = 1)
