@@ -12,9 +12,9 @@
 ### 依赖配置
 ```
         <dependency>
-            <groupId></groupId>
-            <artifactId></artifactId>
-            <version></version>
+            <groupId>com.asyncexport.boot</groupId>
+            <artifactId>asyncexport</artifactId>
+            <version>1.0.0</version>
         </dependency>
 ```
 ***
@@ -61,7 +61,10 @@ public class DemoEntity {
 ***
 ### 异步方式
 异步方式的流转需要配合数据库使用 用来记录任务，使用方式和同步无太多差异，看需求配置  
-todo....
+1：异步方式需要用到数据库表作为任务记录的存储  
+2：redis的作用是用来加数据锁，防止同条任务多次导出  
+3：任务调用方式 推荐使用xxxjob方式进行任务调度
+
 ***
 ## 数据库表设计
 ```
