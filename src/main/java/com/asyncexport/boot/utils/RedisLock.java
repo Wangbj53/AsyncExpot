@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * 分布式锁工具类.
- * @author Pete.Lee Aug 29, 2017 3:23:41 PM
  */
 @Slf4j
 public class RedisLock {

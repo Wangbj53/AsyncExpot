@@ -11,7 +11,6 @@ import java.util.List;
 
 /**
  * redis 工具类.
- * @author Pete.Lee 2017/9/5 15:01
  */
 @Slf4j
 public class RedisUtil {

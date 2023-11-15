@@ -6,7 +6,8 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.excel.EasyExcel;
-import com.alibaba.excel.util.FileUtils;
+import com.alibaba.excel.ExcelWriter;
+import com.alibaba.excel.write.metadata.WriteSheet;
 import com.alibaba.fastjson.JSONObject;
 import com.asyncexport.boot.entity.BzAsyncExportLog;
 import com.asyncexport.boot.entity.PageQuery;
@@ -26,12 +27,11 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import java.lang.reflect.*;
 import java.net.URLEncoder;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 
 /**
@@ -46,6 +46,9 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
 
     @Resource
     ApplicationContext context;
+
+    private static double spiltMax = 5000.00;
+    private static int spiltMaxInt = 5000;
 
 
     /**
@@ -116,7 +119,7 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
             //获取方法的名称
             String methodName = method.getName();
             String returnTypeName, name = "";
-            //判断是否是UserDao中的getAll()或者getOne(int id)方法，
+
             if (methodName.startsWith(headPath[1])) {
                 //返回一个Type对象，表示由该方法对象表示的方法的正式返回类型。
                 //比如public List<User> getAll();那么返回的是List<User>
@@ -144,40 +147,20 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
                     //获取返回值类型的类名
                     name = returnType.getName();
                     System.out.println(methodName + "的返回值类型不是参数化类型其类型为：" + name);
-
                 }
                 //开始构建参数 拿到返回数据 执行导出
                 //目前参数是对象方式传输 拿第一个对象即可
                 Class parameter = method.getParameterTypes()[0];
                 //如果是同步返回情况 那么第二个参数一定要是Response;
-
                 Object o = parameter.newInstance();//参数对象
                 JSONObject jsonObject = new JSONObject();//参数
                 if (o instanceof PageQuery) {
-                    // TODO 将当前参数转化为当前方法的入参类型
-                    Type[] parameterTypes = method.getGenericParameterTypes();
-                    for (Type paramType : parameterTypes) {
-                        //ParameterizedType:参数化类型，判断是否是参数化类型。
-                        if (paramType instanceof ParameterizedType) {
-                            //获得源码中的真正的参数类型
-                            Type[] genericType = ((ParameterizedType) paramType).getActualTypeArguments();
-                            Class<?> actualTypeArgument = (Class<?>) genericType[0];
-                            JSONObject params = (StrUtil.isBlank(item.getParams()) ? null : JSONObject.parseObject(item.getParams()));
-                            Object requestParam = actualTypeArgument.newInstance();
-                            //放上对象
-                            setField(actualTypeArgument, requestParam, params);
 
-                            jsonObject.put("param", requestParam);
-                            jsonObject.put("size", Long.MAX_VALUE);
-                            break;
-                        }
-
-                    }
+                    toJSONObject(item, method, jsonObject);
 
                 } else {
                     //数据传输时一定是 PageQuery类型 但是方法入参类型不一定是
                     //需要取出来其中的param
-
                     jsonObject = StrUtil.isBlank(item.getParams()) ? null : JSONObject.parseObject(item.getParams());
                     jsonObject = jsonObject == null ? null : JSONObject.parseObject(JSONObject.toJSONString(jsonObject.get("param")));
                 }
@@ -186,10 +169,13 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
                 if (ObjectUtil.isNotNull(jsonObject)) {
                     setField(parameter, o, jsonObject);
                 }
+
                 Object returnParam = null;
+
                 //参数全部设置完毕 拿到返回数据
                 returnParam = method.invoke(serviceBean, o);
-                // TODO 可以支持下分页类型的返回
+
+                //可以支持下分页类型的返回
                 if (returnParam instanceof Page) {
                     returnParam = ((Page<?>) returnParam).getRecords();
                 }
@@ -203,57 +189,25 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
                         log.info("BzAsyncExportLogService openMain 同步处理生成生成二进制文件 ");
                         String fileName = URLEncoder.encode(item.getName(), "UTF-8");
                         response.setHeader("Content-disposition", "attachment;filename=" + fileName + ".xlsx");
-                        EasyExcel.write(response.getOutputStream(), Class.forName(name)).sheet("sheet").doWrite((Collection<?>) returnParam);
+                        splitListAndExport(response, name, (List) returnParam);
                         return;
                     }
                     excelFile = File.createTempFile(item.getName() + DateUtil.format(new Date(), "yyyy-MM-dd HH:mm"), ".xlsx");
-                    EasyExcel.write(excelFile, Class.forName(name)).sheet("sheet").doWrite((Collection<?>) returnParam);
+                    splitListAndExport(excelFile, name, (List) returnParam);
                     log.info("BzAsyncExportLogService openMain 生成二进制文件 ");
                     byte[] bytes = FileUtil.readBytes(excelFile);
-                    // todo 输出路径
+                    //  输出路径
 
                     String fileCode = "";
-                    if (StrUtil.isNotBlank(item.getOutMethodPath()) && "custom".equals(saveType)) {
-                        String outHeadPath[] = item.getOutMethodPath().split("\\.");
-                        String outServiceName = captureName(outHeadPath[0]);
-                        //处理任务
-                        String outServicePath = context.getBean(outServiceName).getClass().getName().substring(0, context.getBean(outServiceName).getClass().getName().indexOf("$"));
-                        //拿到service
-                        Class<?> outClazz = Class.forName(outServicePath);
-                        Object outServiceBean = context.getBean(clazz);
-                        //获取当前service下所有的方法 准备遍历
-                        Method[] outMethods = outClazz.getMethods();
-                        for (Method outMethod : outMethods) {
-                            if (outMethod.getName().startsWith(outHeadPath[1])) {
-                                fileCode = outMethod.invoke(outServiceBean, (Object) bytes).toString();
-                                break;
-                            }
-                        }
 
+                    if (StrUtil.isNotBlank(item.getOutMethodPath()) && "custom".equals(saveType)) {
+
+                        fileCode = getFileCode(item, clazz, (Object) bytes, fileCode);
                     } else if ("local".equals(saveType)) {
-                        String fileName = item.getName() + DateUtil.format(DateUtil.offsetHour(new Date(), 8), "yyyy-MM-dd HH:mm") + ".xlsx";
-                        //输出到项目路径下
-                        FileOutputStream outStream = null;
-                        try {
-                            File file = new File("src/main/resources/" + fileName);//文件路径（路径+文件名）
-                            if (!file.exists()) {   //文件不存在则创建文件，先创建目录
-                                File dir = new File(file.getParent());
-                                dir.mkdirs();
-                                file.createNewFile();
-                            }
-                            outStream = new FileOutputStream(file); //文件输出流将数据写入文件
-                            outStream.write(bytes);
-                            outStream.close();
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        } finally {
-                            if (outStream != null) {
-                                outStream.close();
-                            }
-                        }
+                        //将文件输出至本地
+                        localExport(item, bytes);
                     }
-                    item.setOperationCode(fileCode);
-                    item.setState(1);
+                    item.setOperationCode(fileCode).setState(1);
                 } catch (IOException e) {
                     item.setState(0);
                     e.printStackTrace();
@@ -272,6 +226,163 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
         }
 
 
+    }
+
+    /**
+     * 转化为JSONObject
+     *
+     * @param item
+     * @param method
+     * @param jsonObject
+     * @throws InstantiationException
+     * @throws IllegalAccessException
+     */
+    private void toJSONObject(BzAsyncExportLog item, Method method, JSONObject jsonObject) throws InstantiationException, IllegalAccessException {
+        //  将当前参数转化为当前方法的入参类型
+        Type[] parameterTypes = method.getGenericParameterTypes();
+        for (Type paramType : parameterTypes) {
+            //ParameterizedType:参数化类型，判断是否是参数化类型。
+            if (paramType instanceof ParameterizedType) {
+                //获得源码中的真正的参数类型
+                Type[] genericType = ((ParameterizedType) paramType).getActualTypeArguments();
+                Class<?> actualTypeArgument = (Class<?>) genericType[0];
+                JSONObject params = (StrUtil.isBlank(item.getParams()) ? null : JSONObject.parseObject(item.getParams()));
+                Object requestParam = actualTypeArgument.newInstance();
+                //放上对象
+                setField(actualTypeArgument, requestParam, params);
+
+                jsonObject.put("param", requestParam);
+                jsonObject.put("size", Long.MAX_VALUE);
+                break;
+            }
+
+        }
+    }
+
+    /**
+     * 指定输出方法
+     *
+     * @param item
+     * @param clazz
+     * @param bytes
+     * @param fileCode
+     * @return
+     * @throws ClassNotFoundException
+     * @throws IllegalAccessException
+     * @throws InvocationTargetException
+     */
+    private String getFileCode(BzAsyncExportLog item, Class<?> clazz, Object bytes, String fileCode) throws ClassNotFoundException, IllegalAccessException, InvocationTargetException {
+        String outHeadPath[] = item.getOutMethodPath().split("\\.");
+        String outServiceName = captureName(outHeadPath[0]);
+        //处理任务
+        String outServicePath = context.getBean(outServiceName).getClass().getName().substring(0, context.getBean(outServiceName).getClass().getName().indexOf("$"));
+        //拿到service
+        Class<?> outClazz = Class.forName(outServicePath);
+        Object outServiceBean = context.getBean(clazz);
+        //获取当前service下所有的方法 准备遍历
+        Method[] outMethods = outClazz.getMethods();
+        for (Method outMethod : outMethods) {
+            if (outMethod.getName().startsWith(outHeadPath[1])) {
+                fileCode = outMethod.invoke(outServiceBean, bytes).toString();
+                break;
+            }
+        }
+        return fileCode;
+    }
+
+    /**
+     * 本地执行
+     *
+     * @param item
+     * @param bytes
+     * @throws IOException
+     */
+    private void localExport(BzAsyncExportLog item, byte[] bytes) throws IOException {
+        String fileName = item.getName() + DateUtil.format(DateUtil.offsetHour(new Date(), 8), "yyyy-MM-dd HH:mm") + ".xlsx";
+        //输出到项目路径下
+        FileOutputStream outStream = null;
+        try {
+            File file = new File("src/main/resources/" + fileName);//文件路径（路径+文件名）
+            if (!file.exists()) {   //文件不存在则创建文件，先创建目录
+                File dir = new File(file.getParent());
+                dir.mkdirs();
+                file.createNewFile();
+            }
+            outStream = new FileOutputStream(file); //文件输出流将数据写入文件
+            outStream.write(bytes);
+            outStream.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (outStream != null) {
+                outStream.close();
+            }
+        }
+    }
+
+    /**
+     * 执行导出文件生成 并切割集合
+     *
+     * @param obj
+     * @param name
+     * @param returnParam
+     * @throws IOException
+     * @throws ClassNotFoundException
+     */
+    private void splitListAndExport(Object obj, String name, List returnParam) throws IOException, ClassNotFoundException {
+        //判断返回参数是否大于5000条
+        if (returnParam.size() > spiltMaxInt) {
+            List<List> splitList = new ArrayList<>();
+            //每个sheet 最多不能超过5000个 所以需要分割集合
+            for (int i = 0; i < returnParam.size(); i += spiltMaxInt) {
+                splitList.add(returnParam.subList(i, Math.min(i + spiltMaxInt, returnParam.size())));
+            }
+            //创建excel
+            ExcelWriter excelWriter = null;
+            //判断类型
+            if (obj instanceof HttpServletResponse) {
+                HttpServletResponse httpServletResponse = (HttpServletResponse) obj;
+                excelWriter = EasyExcel.write(httpServletResponse.getOutputStream(), Class.forName(name)).build();
+            }
+            if (obj instanceof File) {
+                File file = (File) obj;
+                excelWriter = EasyExcel.write(file, Class.forName(name)).build();
+            }
+
+            AtomicInteger count = new AtomicInteger(1);
+            //开始填充内容
+            ExcelWriter finalExcelWriter = excelWriter;
+            splitList.parallelStream().forEach(item -> {
+
+                // 这里注意 如果同一个sheet只要创建一次
+                WriteSheet writeSheet = EasyExcel.writerSheet("sheet_" + count).build();
+                // 去调用写入,这里我调用了五次，实际使用时根据数据库分页的总的页数来
+                finalExcelWriter.write(item, writeSheet);
+
+                count.getAndIncrement();
+            });
+        } else {
+            //如果小于5000条，则直接写入
+            if (obj instanceof HttpServletResponse) {
+                HttpServletResponse httpServletResponse = (HttpServletResponse) obj;
+                EasyExcel.write(httpServletResponse.getOutputStream(), Class.forName(name)).sheet("sheet").doWrite(returnParam);
+            }
+            if (obj instanceof File) {
+                File file = (File) obj;
+                EasyExcel.write(file, Class.forName(name)).sheet("sheet").doWrite(returnParam);
+            }
+
+        }
+    }
+
+    public static void main(String[] args) {
+        List<Integer> returnParam = new ArrayList<>();
+        for (int i = 0; i < 10001; i++) {
+            returnParam.add(i);
+        }
+        int size = (int) Math.ceil(returnParam.size() / spiltMax);
+        Collection<? extends List<?>> values = returnParam.stream().collect(Collectors.groupingBy(i -> (int) (i.hashCode() % size))).values();
+        System.out.println(values.size());
     }
 
     //首字母小写

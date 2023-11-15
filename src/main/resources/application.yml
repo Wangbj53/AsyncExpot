@@ -1,15 +1,13 @@
 spring:
   redis:
-    pool.max-idle: 8
-    pool.min-idle: 4
-    pool.max-active: 16
-    pool.max-wait: -1
-  data:
-    redis:
-      database: 0
-      password:
-      port: 6379
-      host: 10.20.9.85
+    host: 127.0.0.1
+    port: 6379
+    maxTotal: 20
+    maxIdle: 5
+    maxWaitMillis: 10000
+    testOnBorrow: true
+  application:
+    name: async-export
 
 ae:
   saveType: local

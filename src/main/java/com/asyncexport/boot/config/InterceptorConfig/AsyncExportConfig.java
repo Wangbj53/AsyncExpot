@@ -6,6 +6,8 @@ import com.asyncexport.boot.config.AsyncExportTask;
 import com.asyncexport.boot.entity.BzAsyncExportLog;
 import com.asyncexport.boot.entity.PageQuery;
 import com.asyncexport.boot.service.BzAsyncExportLogService;
+import com.asyncexport.boot.utils.RedisHelper;
+import com.asyncexport.boot.utils.RedisUtil;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.Signature;
 import org.aspectj.lang.annotation.Aspect;
@@ -15,8 +17,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import java.lang.reflect.Method;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 异步注解实现
@@ -28,8 +32,12 @@ import java.lang.reflect.Method;
 @Component
 public class AsyncExportConfig {
 
-    @Autowired
+    @Resource
     BzAsyncExportLogService bzAsyncExportLogService;
+
+    @Resource
+    RedisHelper redisHelper;
+
 
     @Before("@annotation(com.asyncexport.boot.config.AsyncExportTask)")
     public void beforeTest(JoinPoint joinPoint) {
@@ -44,6 +52,13 @@ public class AsyncExportConfig {
         } else {
             throw new RuntimeException("AsyncExportTask: 未找到该方法");
         }
+        String key = apiLog.name()+apiLog.methodPath();
+        if (redisHelper.hasKey(key)){
+            throw new RuntimeException("AsyncExportTask: 操作过于频繁请三秒后再试");
+        }else {
+            redisHelper.set(key,apiLog,3l, TimeUnit.SECONDS);
+        }
+
         //4. 获取方法的参数 一一对应
         Object[] args = joinPoint.getArgs();
         boolean flag = false;

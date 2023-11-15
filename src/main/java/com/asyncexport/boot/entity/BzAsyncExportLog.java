@@ -2,6 +2,7 @@ package com.asyncexport.boot.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
+import lombok.experimental.Accessors;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -12,6 +13,7 @@ import java.util.Date;
  */
 @Data
 @TableName("bz_async_export_log")
+@Accessors(chain = true)
 public class BzAsyncExportLog implements Serializable {
 	private static final long serialVersionUID = 1L;
 
@@ -102,29 +104,5 @@ public class BzAsyncExportLog implements Serializable {
 	@TableField(insertStrategy = FieldStrategy.NEVER,updateStrategy = FieldStrategy.NEVER)
 	private Date updateTime;
 
-
-	public static final String COL_ID = "id";
-
-	public static final String COL_OPERATION_CODE = "operation_code";
-
-	public static final String COL_METHOD_PATH = "method_path";
-
-	public static final String COL_PARAMS = "params";
-
-	public static final String COL_STATE = "state";
-
-	public static final String COL_IS_DELETE = "is_delete";
-
-	public static final String COL_CREATE_USER_ID = "create_user_id";
-
-	public static final String COL_CREATE_USER_NAME = "create_user_name";
-
-	public static final String COL_CREATE_TIME = "create_time";
-
-	public static final String COL_UPDATE_USER_ID = "update_user_id";
-
-	public static final String COL_UPDATE_USER_NAME = "update_user_name";
-
-	public static final String COL_UPDATE_TIME = "update_time";
 
 }
