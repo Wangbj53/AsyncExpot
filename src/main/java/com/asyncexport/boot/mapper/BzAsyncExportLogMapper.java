@@ -1,7 +1,7 @@
 package com.asyncexport.boot.mapper;
 
+import com.asyncexport.boot.base.BaseMapper;
 import com.asyncexport.boot.entity.BzAsyncExportLog;
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
 /**
  * 异步导出表

@@ -7,13 +7,11 @@ import com.asyncexport.boot.entity.BzAsyncExportLog;
 import com.asyncexport.boot.entity.PageQuery;
 import com.asyncexport.boot.service.BzAsyncExportLogService;
 import com.asyncexport.boot.utils.RedisHelper;
-import com.asyncexport.boot.utils.RedisUtil;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.Signature;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 

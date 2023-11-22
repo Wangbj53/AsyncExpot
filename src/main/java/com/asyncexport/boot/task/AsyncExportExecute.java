@@ -14,10 +14,10 @@ import javax.annotation.Resource;
 public class AsyncExportExecute {
 
     @Resource
-    private BzAsyncExportLogService service;
+    private BzAsyncExportLogService bzAsyncExportLogService;
 
     @Scheduled(cron = "0/1 * * * * ?")
     private void task(){
-        service.export();
+        bzAsyncExportLogService.export();
     }
 }

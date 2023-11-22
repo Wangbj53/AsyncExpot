@@ -8,6 +8,32 @@ spring:
     testOnBorrow: true
   application:
     name: async-export
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/CPS_COMMON
+    username: root
+    password: 123456
+
+# mybatis-plus相关配置
+mybatis-plus:
+  # xml文件路径
+  mapper-locations: classpath:/**/mapper/*.xml
+  # 实体类路径
+  type-aliases-package: com.asyncexport.boot.entity.*
+  configuration:
+    # 驼峰转换
+    map-underscore-to-camel-case: true
+    # 是否开启缓存
+    cache-enabled: false
+    # 打印sql
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  # 全局配置
+  global-config:
+    # 数据库字段驼峰下划线转换
+    db-column-underline: true
+    # id自增类型(数据库id自增)
+    id-type: 0
 
 ae:
   saveType: local

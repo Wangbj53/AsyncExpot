@@ -11,9 +11,11 @@ import com.alibaba.excel.write.metadata.WriteSheet;
 import com.alibaba.fastjson.JSONObject;
 import com.asyncexport.boot.entity.BzAsyncExportLog;
 import com.asyncexport.boot.entity.PageQuery;
+import com.asyncexport.boot.entity.TCmkDisposeExportDTO;
 import com.asyncexport.boot.mapper.BzAsyncExportLogMapper;
-import com.asyncexport.boot.utils.RedisLock;
+import com.asyncexport.boot.mapper.TCmkDisposeMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -47,10 +49,23 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
     @Resource
     ApplicationContext context;
 
+    @Resource
+    TCmkDisposeMapper tCmkDisposeMapper;
+
     private static double spiltMax = 5000.00;
     private static int spiltMaxInt = 5000;
 
+    /**
+     * 分页查询
+     * @return
+     */
 
+    public Page<TCmkDisposeExportDTO> getPage() {
+        QueryWrapper<TCmkDisposeExportDTO> queryWrapper = new QueryWrapper<>();
+        Page<TCmkDisposeExportDTO> page = new Page();
+        page.setRecords( tCmkDisposeMapper.selectList(queryWrapper));
+        return page;
+    }
     /**
      * 新增
      *
@@ -82,15 +97,17 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
             try {
                 //加锁防止重复导出
                 String buildKey = "----:bz:async:export:" + item.getId();
-                RedisLock lock = new RedisLock(buildKey);
-                if (lock.lock()) {
-                    try {
-                        openMain(item, null);
-                    } finally {
-                        lock.unlock(buildKey);
-                    }
 
-                }
+                openMain(item, null);
+//                RedisLock lock = new RedisLock(buildKey);
+//                if (lock.lock()) {
+//                    try {
+//                        openMain(item, null);
+//                    } finally {
+//                        lock.unlock(buildKey);
+//                    }
+//
+//                }
             } catch (Exception e) {
                 e.printStackTrace();
                 log.error("导出失败:[{}]", JSONObject.toJSONString(item));
@@ -396,6 +413,7 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
         return String.valueOf(cs);
 
     }
+
 
     /**
      * @param parameter  目标对象class
