@@ -9,16 +9,16 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
+import java.io.Serializable;
+
 
 @Data
 @Accessors(chain = true)
 @TableName("T_CMK_DISPOSE")
 @HeadFontStyle(bold = BooleanEnum.FALSE,fontHeightInPoints = 10)
-public class TCmkDisposeExportDTO {
-  @ExcelProperty("沉默卡码号处置表主键ID")
-  @ColumnWidth(15)
-  @TableField(value = "DISPOSE_ID")
-  private Long disposeId;
+public class TCmkDisposeExportDTO implements Serializable {
+
+  private static final long serialVersionUID = 1L;
 
   @ExcelProperty("数据上传来源：1：涉诈码号处置上传页面  2：涉诈码号短信下发上传页面  3：数据中心沉默卡SFTP下载")
   @ColumnWidth(6)
@@ -209,21 +209,6 @@ public class TCmkDisposeExportDTO {
   @ColumnWidth(22)
   @TableField(value = "REMARK")
   private String remark;
-
-  @ExcelProperty("")
-  @ColumnWidth(6)
-  @TableField(value = "CHECK_ORDER_TIME")
-  private int checkOrderTime;
-
-  @ExcelProperty("")
-  @ColumnWidth(6)
-  @TableField(value = "FORMAL_ORDER_TIME")
-  private int formalOrderTime;
-
-  @ExcelProperty("")
-  @ColumnWidth(6)
-  @TableField(value = "ISSUE_SUCCESS_FORMAL")
-  private int issueSuccessFormal;
 
   @ExcelProperty("中间号处置表主键ID")
   @ColumnWidth(15)

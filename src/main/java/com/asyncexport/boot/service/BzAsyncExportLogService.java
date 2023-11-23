@@ -9,11 +9,15 @@ import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.metadata.WriteSheet;
 import com.alibaba.fastjson.JSONObject;
+import com.asyncexport.boot.base.BaseController;
+import com.asyncexport.boot.base.BaseMapper;
+import com.asyncexport.boot.base.BaseService;
 import com.asyncexport.boot.entity.BzAsyncExportLog;
 import com.asyncexport.boot.entity.PageQuery;
 import com.asyncexport.boot.entity.TCmkDisposeExportDTO;
 import com.asyncexport.boot.mapper.BzAsyncExportLogMapper;
 import com.asyncexport.boot.mapper.TCmkDisposeMapper;
+import com.asyncexport.boot.utils.RedisHelper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -32,6 +36,7 @@ import java.io.IOException;
 import java.lang.reflect.*;
 import java.net.URLEncoder;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -44,13 +49,16 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
-public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper, BzAsyncExportLog> {
+public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper, BzAsyncExportLog>{
 
     @Resource
     ApplicationContext context;
 
     @Resource
     TCmkDisposeMapper tCmkDisposeMapper;
+
+    @Resource
+    private RedisHelper redisHelper;
 
     private static double spiltMax = 5000.00;
     private static int spiltMaxInt = 5000;
@@ -60,10 +68,20 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
      * @return
      */
 
-    public Page<TCmkDisposeExportDTO> getPage() {
-        QueryWrapper<TCmkDisposeExportDTO> queryWrapper = new QueryWrapper<>();
+    public Page<TCmkDisposeExportDTO> getPage(PageQuery<BzAsyncExportLog> pageQuery) {
+        List<TCmkDisposeExportDTO> list = new ArrayList<>();
+        if (redisHelper.hasKey("bz_export_page")){
+            list = (List<TCmkDisposeExportDTO>) redisHelper.get("bz_export_page");
+        }else {
+            QueryWrapper<TCmkDisposeExportDTO> queryWrapper = new QueryWrapper<>();
+            queryWrapper.last("limit 200000");
+            list = tCmkDisposeMapper.selectList(queryWrapper);
+            redisHelper.set("bz_export_page",list,60, TimeUnit.MINUTES);
+        }
+
+//        queryWrapper.last("limit 10000");
         Page<TCmkDisposeExportDTO> page = new Page();
-        page.setRecords( tCmkDisposeMapper.selectList(queryWrapper));
+        page.setRecords(list);
         return page;
     }
     /**
@@ -205,6 +223,8 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
                     if (item.getSyncFlag() == 1 && ObjectUtil.isNotNull(response)) {
                         log.info("BzAsyncExportLogService openMain 同步处理生成生成二进制文件 ");
                         String fileName = URLEncoder.encode(item.getName(), "UTF-8");
+                        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+                        response.setCharacterEncoding("utf-8");
                         response.setHeader("Content-disposition", "attachment;filename=" + fileName + ".xlsx");
                         splitListAndExport(response, name, (List) returnParam);
                         return;
@@ -220,6 +240,7 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
                     if (StrUtil.isNotBlank(item.getOutMethodPath()) && "custom".equals(saveType)) {
 
                         fileCode = getFileCode(item, clazz, (Object) bytes, fileCode);
+
                     } else if ("local".equals(saveType)) {
                         //将文件输出至本地
                         localExport(item, bytes);
@@ -366,18 +387,25 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
                 excelWriter = EasyExcel.write(file, Class.forName(name)).build();
             }
 
-            AtomicInteger count = new AtomicInteger(1);
-            //开始填充内容
+
+//            //开始填充内容
+//            for (int i = 0; i < splitList.size(); i++) {
+//                // 这里注意 如果同一个sheet只要创建一次
+//                WriteSheet writeSheet = EasyExcel.writerSheet(i,"sheet_"+(i+1)).build();
+//                excelWriter.write(splitList.get(i), writeSheet);
+//            }
+
             ExcelWriter finalExcelWriter = excelWriter;
-            splitList.parallelStream().forEach(item -> {
 
-                // 这里注意 如果同一个sheet只要创建一次
-                WriteSheet writeSheet = EasyExcel.writerSheet("sheet_" + count).build();
-                // 去调用写入,这里我调用了五次，实际使用时根据数据库分页的总的页数来
-                finalExcelWriter.write(item, writeSheet);
+//            AtomicInteger i = new AtomicInteger(-1);
 
-                count.getAndIncrement();
-            });
+            for (int i = 0; i < splitList.size(); i++) {
+                WriteSheet writeSheet = EasyExcel.writerSheet(i,"sheet_"+(i+1)).build();
+
+                finalExcelWriter.write(splitList.get(i), writeSheet);
+            }
+
+            excelWriter.finish();
         } else {
             //如果小于5000条，则直接写入
             if (obj instanceof HttpServletResponse) {
@@ -393,13 +421,16 @@ public class BzAsyncExportLogService extends ServiceImpl<BzAsyncExportLogMapper,
     }
 
     public static void main(String[] args) {
-        List<Integer> returnParam = new ArrayList<>();
-        for (int i = 0; i < 10001; i++) {
-            returnParam.add(i);
-        }
-        int size = (int) Math.ceil(returnParam.size() / spiltMax);
-        Collection<? extends List<?>> values = returnParam.stream().collect(Collectors.groupingBy(i -> (int) (i.hashCode() % size))).values();
-        System.out.println(values.size());
+//        List<Integer> returnParam = new ArrayList<>();
+//        for (int i = 0; i < 10001; i++) {
+//            returnParam.add(i);
+//        }
+//        int size = (int) Math.ceil(returnParam.size() / spiltMax);
+//        Collection<? extends List<?>> values = returnParam.stream().collect(Collectors.groupingBy(i -> (int) (i.hashCode() % size))).values();
+//        System.out.println(values.size());
+
+
+
     }
 
     //首字母小写

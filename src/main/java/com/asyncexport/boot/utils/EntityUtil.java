@@ -195,6 +195,10 @@ public class EntityUtil {
                 return 22;
             case "INT":
                 return 6;
+            case "DATETIME":
+            case "DATE":
+            case "TIME":
+                return 23;
             default:
                 return 15;
         }
