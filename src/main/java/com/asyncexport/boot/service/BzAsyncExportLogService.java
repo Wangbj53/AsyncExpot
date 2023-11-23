@@ -19,6 +19,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.Redisson;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
@@ -53,6 +56,9 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
 
     @Resource
     private RedisHelper redisHelper;
+
+    @Resource
+    private RedissonClient redissonClient;
 
     private static double spiltMax = 5000.00;
     private static int spiltMaxInt = 5000;
@@ -89,16 +95,16 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
                 //加锁防止重复导出
                 String buildKey = "----:bz:async:export:" + item.getId();
 
-                openMain(item, null);
-//                RedisLock lock = new RedisLock(buildKey);
-//                if (lock.lock()) {
-//                    try {
-//                        openMain(item, null);
-//                    } finally {
-//                        lock.unlock(buildKey);
-//                    }
-//
-//                }
+                RLock lock = redissonClient.getLock(buildKey);
+
+                if (lock.tryLock()) {
+                    try {
+                        openMain(item, null);
+                    } finally {
+                        lock.unlock();
+                    }
+
+                }
             } catch (Exception e) {
                 e.printStackTrace();
                 log.error("导出失败:[{}]", JSONObject.toJSONString(item));
