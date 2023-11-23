@@ -1,5 +1,8 @@
 package com.asyncexport.boot.utils;
 
+import com.alibaba.excel.annotation.write.style.HeadFontStyle;
+import com.alibaba.excel.annotation.write.style.HeadRowHeight;
+import com.alibaba.excel.enums.BooleanEnum;
 import com.asyncexport.boot.service.BzAsyncExportLogService;
 import org.apache.poi.hpsf.Decimal;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,12 +28,14 @@ public class EntityUtil {
         typeMapping = new HashMap<>();
         typeMapping.put("INTEGER", "Integer");
         typeMapping.put("INT", "int");
+        typeMapping.put("tinyint", "int");
         typeMapping.put("BIGINT", "Long");
         typeMapping.put("SMALLINT", "Short");
         typeMapping.put("FLOAT", "Float");
         typeMapping.put("DOUBLE", "Double");
         typeMapping.put("DECIMAL", "java.math.BigDecimal");
         typeMapping.put("VARCHAR", "String");
+        typeMapping.put("text", "String");
         typeMapping.put("CHAR", "String");
         typeMapping.put("BOOLEAN", "Boolean");
         typeMapping.put("DATE", "java.util.Date");
@@ -42,7 +47,7 @@ public class EntityUtil {
 
     public static void main(String[] args) throws FileNotFoundException {
         String path = "src/main/java/com/asyncexport/boot/entity/";
-        String tableName = "T_CMK_DISPOSE";
+        String tableName = "";
         createClass( path,tableName);
     }
 
@@ -133,8 +138,10 @@ public class EntityUtil {
                 .append("@Data\n")
                 .append("@Accessors(chain = true)\n")
                 .append("@TableName(\"").append(tableName).append("\")\n")
-                .append("@HeadFontStyle(bold = BooleanEnum.FALSE,fontHeightInPoints = 10)\n")
-                .append("public class ").append(captureNameUppercase(hump(tableName))).append("ExportDTO {\n");
+                .append("@HeadFontStyle(bold = BooleanEnum.TRUE, fontHeightInPoints = 10)\n")
+                .append("@HeadRowHeight(value = 25)\n")
+                .append("public class ").append(captureNameUppercase(hump(tableName))).append("ExportDTO ").append("implements Serializable{\n\n")
+                .append("private static final long serialVersionUID = 1L;\n\n");
     }
 
     /**

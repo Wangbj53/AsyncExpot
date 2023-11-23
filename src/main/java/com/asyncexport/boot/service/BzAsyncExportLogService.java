@@ -9,19 +9,15 @@ import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.metadata.WriteSheet;
 import com.alibaba.fastjson.JSONObject;
-import com.asyncexport.boot.base.BaseController;
-import com.asyncexport.boot.base.BaseMapper;
 import com.asyncexport.boot.base.BaseService;
 import com.asyncexport.boot.entity.BzAsyncExportLog;
 import com.asyncexport.boot.entity.PageQuery;
-import com.asyncexport.boot.entity.TCmkDisposeExportDTO;
 import com.asyncexport.boot.mapper.BzAsyncExportLogMapper;
 import com.asyncexport.boot.mapper.TCmkDisposeMapper;
 import com.asyncexport.boot.utils.RedisHelper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
@@ -37,8 +33,6 @@ import java.lang.reflect.*;
 import java.net.URLEncoder;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 
 /**
@@ -63,27 +57,6 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
     private static double spiltMax = 5000.00;
     private static int spiltMaxInt = 5000;
 
-    /**
-     * 分页查询
-     * @return
-     */
-
-    public Page<TCmkDisposeExportDTO> getPage(PageQuery<BzAsyncExportLog> pageQuery) {
-        List<TCmkDisposeExportDTO> list = new ArrayList<>();
-        if (redisHelper.hasKey("bz_export_page")){
-            list = (List<TCmkDisposeExportDTO>) redisHelper.get("bz_export_page");
-        }else {
-            QueryWrapper<TCmkDisposeExportDTO> queryWrapper = new QueryWrapper<>();
-            queryWrapper.last("limit 200000");
-            list = tCmkDisposeMapper.selectList(queryWrapper);
-            redisHelper.set("bz_export_page",list,60, TimeUnit.MINUTES);
-        }
-
-//        queryWrapper.last("limit 10000");
-        Page<TCmkDisposeExportDTO> page = new Page();
-        page.setRecords(list);
-        return page;
-    }
     /**
      * 新增
      *
@@ -230,6 +203,7 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
                         return;
                     }
                     excelFile = File.createTempFile(item.getName() + DateUtil.format(new Date(), "yyyy-MM-dd HH:mm"), ".xlsx");
+                    log.info("BzAsyncExportLogService openMain 开始异步处理文件生成");
                     splitListAndExport(excelFile, name, (List) returnParam);
                     log.info("BzAsyncExportLogService openMain 生成二进制文件 ");
                     byte[] bytes = FileUtil.readBytes(excelFile);
@@ -244,6 +218,7 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
                     } else if ("local".equals(saveType)) {
                         //将文件输出至本地
                         localExport(item, bytes);
+                        fileCode = "src/main/resources/";
                     }
                     item.setOperationCode(fileCode).setState(1);
                 } catch (IOException e) {
@@ -336,7 +311,7 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
      * @throws IOException
      */
     private void localExport(BzAsyncExportLog item, byte[] bytes) throws IOException {
-        String fileName = item.getName() + DateUtil.format(DateUtil.offsetHour(new Date(), 8), "yyyy-MM-dd HH:mm") + ".xlsx";
+        String fileName = item.getName() + DateUtil.format(new Date(), "yyyy-MM-dd HH:mm") + ".xlsx";
         //输出到项目路径下
         FileOutputStream outStream = null;
         try {
@@ -370,41 +345,42 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
     private void splitListAndExport(Object obj, String name, List returnParam) throws IOException, ClassNotFoundException {
         //判断返回参数是否大于5000条
         if (returnParam.size() > spiltMaxInt) {
+
+            log.info("--------数据大于5000 开始分割sheet ------【{}】",returnParam.size());
+
             List<List> splitList = new ArrayList<>();
             //每个sheet 最多不能超过5000个 所以需要分割集合
             for (int i = 0; i < returnParam.size(); i += spiltMaxInt) {
                 splitList.add(returnParam.subList(i, Math.min(i + spiltMaxInt, returnParam.size())));
             }
+            log.info("---------数据分割共计 sheet页 【{}个】",splitList.size());
             //创建excel
             ExcelWriter excelWriter = null;
             //判断类型
             if (obj instanceof HttpServletResponse) {
+                log.info("====识别为同步处理=====");
                 HttpServletResponse httpServletResponse = (HttpServletResponse) obj;
                 excelWriter = EasyExcel.write(httpServletResponse.getOutputStream(), Class.forName(name)).build();
             }
             if (obj instanceof File) {
+                log.info("======识别为异步处理========");
                 File file = (File) obj;
                 excelWriter = EasyExcel.write(file, Class.forName(name)).build();
             }
 
 
-//            //开始填充内容
-//            for (int i = 0; i < splitList.size(); i++) {
-//                // 这里注意 如果同一个sheet只要创建一次
-//                WriteSheet writeSheet = EasyExcel.writerSheet(i,"sheet_"+(i+1)).build();
-//                excelWriter.write(splitList.get(i), writeSheet);
-//            }
-
             ExcelWriter finalExcelWriter = excelWriter;
 
-//            AtomicInteger i = new AtomicInteger(-1);
 
             for (int i = 0; i < splitList.size(); i++) {
                 WriteSheet writeSheet = EasyExcel.writerSheet(i,"sheet_"+(i+1)).build();
 
                 finalExcelWriter.write(splitList.get(i), writeSheet);
+
+                log.info("分割第【{}个】 完成！",i+1);
             }
 
+            log.info("======================分割完成 开始输出文件======================");
             excelWriter.finish();
         } else {
             //如果小于5000条，则直接写入

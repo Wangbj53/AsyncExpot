@@ -66,43 +66,6 @@ public class BzAsyncExportLog implements Serializable {
 	/**
 	 * 删除标记
 	 */
-	private Boolean isDelete;
-
-	/**
-	 * 创建人ID
-	 */
-	@TableField(fill = FieldFill.INSERT)
-	private String createUserId;
-
-	/**
-	 * 创建人姓名
-	 */
-	@TableField(fill = FieldFill.INSERT)
-	private String createUserName;
-
-	/**
-	 * 创建时间
-	 */
-	@TableField(insertStrategy = FieldStrategy.NEVER, updateStrategy = FieldStrategy.NEVER)
-	private Date createTime;
-
-	/**
-	 * 修改人ID
-	 */
-	@TableField(fill = FieldFill.INSERT_UPDATE)
-	private String updateUserId;
-
-	/**
-	 * 修改人姓名
-	 */
-	@TableField(fill = FieldFill.INSERT_UPDATE)
-	private String updateUserName;
-
-	/**
-	 * 修改时间
-	 */
-	@TableField(insertStrategy = FieldStrategy.NEVER,updateStrategy = FieldStrategy.NEVER)
-	private Date updateTime;
-
+	private int isDelete;
 
 }
