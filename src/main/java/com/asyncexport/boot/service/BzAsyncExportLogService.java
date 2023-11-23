@@ -13,13 +13,10 @@ import com.asyncexport.boot.base.BaseService;
 import com.asyncexport.boot.entity.BzAsyncExportLog;
 import com.asyncexport.boot.entity.PageQuery;
 import com.asyncexport.boot.mapper.BzAsyncExportLogMapper;
-import com.asyncexport.boot.mapper.TCmkDisposeMapper;
 import com.asyncexport.boot.utils.RedisHelper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.Redisson;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,7 +32,6 @@ import java.io.IOException;
 import java.lang.reflect.*;
 import java.net.URLEncoder;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -51,8 +47,6 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
     @Resource
     ApplicationContext context;
 
-    @Resource
-    TCmkDisposeMapper tCmkDisposeMapper;
 
     @Resource
     private RedisHelper redisHelper;
