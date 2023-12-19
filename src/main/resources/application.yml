@@ -33,3 +33,5 @@ mybatis-plus:
 
 ae:
   saveType: local
+  # 异步导出每次分页条数
+  pageSize: 100

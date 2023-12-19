@@ -63,9 +63,11 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
     @Value("${ae.saveType}")
     private String saveType = "";
 
+    @Value("${ae.pageSize}")
+    private Integer pageSize = 100;
+
     private static double spiltMax = 5000.00;
     private static int spiltMaxInt = 5000;
-
 
 
 
@@ -151,75 +153,46 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
         for (Method method : methods) {
             //获取方法的名称
             String methodName = method.getName();
-            String returnTypeName, name = "";
 
+            // 返回对象类名
+            String returnClassName = "";
+
+            // 命中目标方法
             if (methodName.startsWith(headPath[1])) {
-                //返回一个Type对象，表示由该方法对象表示的方法的正式返回类型。
-                //比如public List<User> getAll();那么返回的是List<User>
-                Type genericReturnType = method.getGenericReturnType();
-                //获取实际返回的参数名
-                returnTypeName = genericReturnType.getTypeName();
-                System.out.println(methodName + "的返回参数是：" + returnTypeName);
-                //判断是否是参数化类型
-                if (genericReturnType instanceof ParameterizedType) {
-                    //如果是参数化类型,则强转
-                    ParameterizedType parameterizedType = (ParameterizedType) genericReturnType;
-                    //获取实际参数类型数组，比如List<User>，则获取的是数组[User]，Map<User,String> 则获取的是数组[User,String]
-                    Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();
-                    for (Type type : actualTypeArguments) {
-                        //强转
-                        Class<?> actualTypeArgument = (Class<?>) type;
-                        //获取实际参数的类名
-                        name = actualTypeArgument.getName();
-                        System.out.println(methodName + "的返回值类型是参数化类型，其类型为：" + name);
+
+                File excelFile = null;
+
+                try {
+
+                    // 获取方法返回对象类型
+                    returnClassName = getReturnClassName(method, methodName, returnClassName);
+
+                    // 分页查询
+                    Object returnParam = invokePage(item, serviceBean, method, 1);
+
+                    // 创建容器
+                    List<Object> allList = new ArrayList<>();
+
+                    // 先放入第一页
+                    Object returnList = ((Page<?>) returnParam).getRecords();
+                    allList.addAll((Collection<?>) returnList);
+
+                    // 总页数
+                    long pages = ((Page<?>) returnParam).getPages();
+
+                    // 遍历查询
+                    if (pages > 1) {
+                        for (int page = 2; page <= pages; ++page) {
+                            Object nextPageReturn = invokePage(item, serviceBean, method, page);
+                            Object nextReturnList = ((Page<?>) nextPageReturn).getRecords();
+                            allList.addAll((Collection<?>) nextReturnList);
+                        }
                     }
 
-                } else {
-                    //不是参数化类型,直接获取返回值类型
-                    Class<?> returnType = method.getReturnType();
-                    //获取返回值类型的类名
-                    name = returnType.getName();
-                    System.out.println(methodName + "的返回值类型不是参数化类型其类型为：" + name);
-                }
-                //开始构建参数 拿到返回数据 执行导出
-                //目前参数是对象方式传输 拿第一个对象即可
-                Class parameter = method.getParameterTypes()[0];
-                //如果是同步返回情况 那么第二个参数一定要是Response;
-                Object o = parameter.newInstance();//参数对象
-                JSONObject jsonObject = new JSONObject();//参数
-                if (o instanceof PageQuery) {
+                    //构建excel 上传至oss
+                    log.info("BzAsyncExportLogService openMain 开始生成EXCEL");
+                    //生成EXCEL 上传至OSS
 
-                    toJSONObject(item, method, jsonObject);
-
-                } else {
-                    //数据传输时一定是 PageQuery类型 但是方法入参类型不一定是
-                    //需要取出来其中的param
-                    jsonObject = StrUtil.isBlank(item.getParams()) ? null : JSONObject.parseObject(item.getParams());
-                    jsonObject = jsonObject == null ? null : JSONObject.parseObject(JSONObject.toJSONString(jsonObject.get("param")));
-                }
-
-
-
-
-                //给所有的字段设置值
-                if (ObjectUtil.isNotNull(jsonObject)) {
-                    setField(parameter, o, jsonObject);
-                }
-
-                Object returnParam = null;
-
-                //参数全部设置完毕 拿到返回数据
-                returnParam = method.invoke(serviceBean, o);
-
-                //可以支持下分页类型的返回
-                if (returnParam instanceof Page) {
-                    returnParam = ((Page<?>) returnParam).getRecords();
-                }
-                //构建excel 上传至oss
-                log.info("BzAsyncExportLogService openMain 开始生成EXCEL");
-                //生成EXCEL 上传至OSS
-                File excelFile = null;
-                try {
                     //同步处理直接返回二进制文件
                     if (item.getSyncFlag() == 1 && ObjectUtil.isNotNull(response)) {
                         log.info("BzAsyncExportLogService openMain 同步处理生成生成二进制文件 ");
@@ -227,12 +200,13 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
                         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
                         response.setCharacterEncoding("utf-8");
                         response.setHeader("Content-disposition", "attachment;filename=" + fileName + ".xlsx");
-                        splitListAndExport(response, name, (List) returnParam);
+                        splitListAndExport(response, returnClassName, allList);
                         return;
                     }
+
                     excelFile = File.createTempFile(item.getName() + DateUtil.format(new Date(), "yyyy-MM-dd HH:mm"), ".xlsx");
                     log.info("BzAsyncExportLogService openMain 开始异步处理文件生成");
-                    splitListAndExport(excelFile, name, (List) returnParam);
+                    splitListAndExport(excelFile, returnClassName, allList);
                     log.info("BzAsyncExportLogService openMain 生成二进制文件 ");
                     byte[] bytes = FileUtil.readBytes(excelFile);
                     //  输出路径
@@ -269,16 +243,38 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
 
     }
 
-    /**
-     * 转化为JSONObject
-     *
-     * @param item
-     * @param method
-     * @param jsonObject
-     * @throws InstantiationException
-     * @throws IllegalAccessException
-     */
-    private void toJSONObject(BzAsyncExportLog item, Method method, JSONObject jsonObject) throws InstantiationException, IllegalAccessException {
+    private Object invokePage(BzAsyncExportLog item, Object serviceBean, Method method, long page) throws InstantiationException, IllegalAccessException, InvocationTargetException {
+        //开始构建参数 拿到返回数据 执行导出
+        //目前参数是对象方式传输 拿第一个对象即可
+        Class parameter = method.getParameterTypes()[0];
+        //如果是同步返回情况 那么第二个参数一定要是Response;
+        Object parameterInstance = parameter.newInstance();//参数对象
+        JSONObject jsonObject = new JSONObject();//参数
+        if (parameterInstance instanceof PageQuery) {
+
+            toJSONObject(item, method, page, jsonObject);
+
+        } else {
+            //数据传输时一定是 PageQuery类型 但是方法入参类型不一定是
+            //需要取出来其中的param
+            jsonObject = StrUtil.isBlank(item.getParams()) ? null : JSONObject.parseObject(item.getParams());
+            jsonObject = jsonObject == null ? null : JSONObject.parseObject(JSONObject.toJSONString(jsonObject.get("param")));
+        }
+
+
+        //给所有的字段设置值
+        if (ObjectUtil.isNotNull(jsonObject)) {
+            setField(parameter, parameterInstance, jsonObject);
+        }
+
+        Object returnParam = null;
+
+        //参数全部设置完毕 拿到返回数据
+        returnParam = method.invoke(serviceBean, parameterInstance);
+        return returnParam;
+    }
+
+    private void toJSONObject(BzAsyncExportLog item, Method method, long page, JSONObject jsonObject) throws InstantiationException, IllegalAccessException {
         //  将当前参数转化为当前方法的入参类型
         Type[] parameterTypes = method.getGenericParameterTypes();
         for (Type paramType : parameterTypes) {
@@ -293,11 +289,57 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
                 setField(actualTypeArgument, requestParam, params);
 
                 jsonObject.put("param", requestParam);
-                jsonObject.put("size", Long.MAX_VALUE);
+                // 第一页
+                jsonObject.put("page", page);
+                jsonObject.put("size", pageSize);
                 break;
             }
 
         }
+    }
+
+    private String getReturnClassName(Method method, String methodName, String returnClassName) {
+        //返回一个Type对象，表示由该方法对象表示的方法的正式返回类型。
+        //比如public List<User> getAll();那么返回的是List<User>
+        Type genericReturnType = method.getGenericReturnType();
+        //获取实际返回的参数名
+        String returnTypeName = genericReturnType.getTypeName();
+        System.out.println(methodName + "的返回参数是：" + returnTypeName);
+        //判断是否是参数化类型
+        if (genericReturnType instanceof ParameterizedType) {
+            //如果是参数化类型,则强转
+            ParameterizedType parameterizedType = (ParameterizedType) genericReturnType;
+            //获取实际参数类型数组，比如List<User>，则获取的是数组[User]，Map<User,String> 则获取的是数组[User,String]
+            Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();
+            for (Type type : actualTypeArguments) {
+                //强转
+                Class<?> actualTypeArgument = (Class<?>) type;
+                //获取实际参数的类名
+                returnClassName = actualTypeArgument.getName();
+                System.out.println(methodName + "的返回值类型是参数化类型，其类型为：" + returnClassName);
+            }
+
+        } else {
+            //不是参数化类型,直接获取返回值类型
+            Class<?> returnType = method.getReturnType();
+            //获取返回值类型的类名
+            returnClassName = returnType.getName();
+            System.out.println(methodName + "的返回值类型不是参数化类型其类型为：" + returnClassName);
+        }
+        return returnClassName;
+    }
+
+    /**
+     * 转化为JSONObject
+     *
+     * @param item
+     * @param method
+     * @param jsonObject
+     * @throws InstantiationException
+     * @throws IllegalAccessException
+     */
+    private void toJSONObject(BzAsyncExportLog item, Method method, JSONObject jsonObject) throws InstantiationException, IllegalAccessException {
+
     }
 
    /**
