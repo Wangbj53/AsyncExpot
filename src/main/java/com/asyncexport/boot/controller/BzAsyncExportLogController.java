@@ -2,9 +2,12 @@ package com.asyncexport.boot.controller;
 
 
 import com.asyncexport.boot.base.BaseController;
+import com.asyncexport.boot.base.BaseService;
 import com.asyncexport.boot.config.AsyncExportTask;
 import com.asyncexport.boot.entity.BzAsyncExportLog;
 import com.asyncexport.boot.entity.PageQuery;
+import com.asyncexport.boot.entity.TCmkDisposeExportDTO;
+import com.asyncexport.boot.mapper.BzAsyncExportLogMapper;
 import com.asyncexport.boot.service.BzAsyncExportLogService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 
 /**
@@ -30,6 +34,10 @@ public class BzAsyncExportLogController  extends BaseController<BzAsyncExportLog
     }
 
 
+    @PostMapping("/page")
+    public Page<TCmkDisposeExportDTO> page(@RequestBody PageQuery<BzAsyncExportLog> pageQuery, HttpServletResponse response) {
+        return this.baseService.getPage(pageQuery);
+    }
 
     @PostMapping("/exportTest")
     @AsyncExportTask(name = "测试大数据量",methodPath = "BzAsyncExportLogService.getPage")

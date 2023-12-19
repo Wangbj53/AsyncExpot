@@ -1,5 +1,6 @@
 package com.asyncexport.boot.utils;
 
+import cn.hutool.core.util.StrUtil;
 import com.alibaba.excel.annotation.write.style.HeadFontStyle;
 import com.alibaba.excel.annotation.write.style.HeadRowHeight;
 import com.alibaba.excel.enums.BooleanEnum;
@@ -47,12 +48,20 @@ public class EntityUtil {
 
     public static void main(String[] args) throws FileNotFoundException {
         String path = "src/main/java/com/asyncexport/boot/entity/";
-        String tableName = "";
-        createClass( path,tableName);
+        String ymlPath = "src/main/resources/application.yml";
+        String tableName = "T_CMK_DISPOSE";
+        createClass(path,tableName,ymlPath);
     }
 
-    private static void createClass(String path,String tableName) throws FileNotFoundException {
-        InputStream input = new FileInputStream("src/main/resources/application.yml");
+    /**
+     * 生成导出实体类
+     * @param path 生成路径 src/main/java/com/asyncexport/boot/entity/
+     * @param tableName 要生成的表
+     * @param ymlPath 数据库配置路径 src/main/resources/application.yml
+     * @throws FileNotFoundException
+     */
+    private static void createClass(String path,String tableName,String ymlPath) throws FileNotFoundException {
+        InputStream input = new FileInputStream(ymlPath);
 
         Yaml yaml = new Yaml();
         // 读取 YAML 文件到 Map 对象
@@ -83,7 +92,7 @@ public class EntityUtil {
                     String columnType = resultSet.getString("TYPE_NAME");
                     String columnComment = resultSet.getString("REMARKS");
 
-                    if (columnMap.containsKey(columnName)){
+                    if (StrUtil.isBlank(columnComment) || columnMap.containsKey(columnName)){
                         continue;
                     }else {
                         columnMap.put(columnName, columnComment);
@@ -100,12 +109,17 @@ public class EntityUtil {
         }
     }
 
+    /**
+     * 文件输出执行方法
+     * @param text
+     * @param path
+     * @param fileName
+     */
     private static void fileOut(String text, String path,String fileName) {
 
-
         File mkdir = new File(path);
-        mkdir.mkdir();
 
+        mkdir.mkdir();
 
         File file = new File(path+fileName);
 
@@ -129,6 +143,7 @@ public class EntityUtil {
         stringBuilder.append("package ").append(path.replace("/",".").substring(14,path.length()-1)).append(";\n\n")
                 .append("import com.alibaba.excel.annotation.ExcelProperty;\n")
                 .append("import com.alibaba.excel.annotation.write.style.ColumnWidth;\n")
+                .append("import com.alibaba.excel.annotation.write.style.HeadRowHeight;\n")
                 .append("import com.baomidou.mybatisplus.annotation.TableField;\n")
                 .append("import com.alibaba.excel.enums.BooleanEnum;\n")
                 .append("import com.alibaba.excel.annotation.write.style.HeadFontStyle;\n")

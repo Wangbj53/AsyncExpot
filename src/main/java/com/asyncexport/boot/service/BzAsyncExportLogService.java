@@ -12,9 +12,12 @@ import com.alibaba.fastjson.JSONObject;
 import com.asyncexport.boot.base.BaseService;
 import com.asyncexport.boot.entity.BzAsyncExportLog;
 import com.asyncexport.boot.entity.PageQuery;
+import com.asyncexport.boot.entity.TCmkDisposeExportDTO;
 import com.asyncexport.boot.mapper.BzAsyncExportLogMapper;
+import com.asyncexport.boot.mapper.TCmkDisposeMapper;
 import com.asyncexport.boot.utils.RedisHelper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -32,6 +35,7 @@ import java.io.IOException;
 import java.lang.reflect.*;
 import java.net.URLEncoder;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -42,11 +46,10 @@ import java.util.*;
  */
 @Service
 @Slf4j
-public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper, BzAsyncExportLog>{
+public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper, BzAsyncExportLog> {
 
     @Resource
     ApplicationContext context;
-
 
     @Resource
     private RedisHelper redisHelper;
@@ -54,8 +57,33 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
     @Resource
     private RedissonClient redissonClient;
 
+    @Resource
+    TCmkDisposeMapper tCmkDisposeMapper;
+
+    @Value("${ae.saveType}")
+    private String saveType = "";
+
     private static double spiltMax = 5000.00;
     private static int spiltMaxInt = 5000;
+
+
+
+
+    public Page<TCmkDisposeExportDTO> getPage(PageQuery<BzAsyncExportLog> pageQuery) {
+        List<TCmkDisposeExportDTO> list = new ArrayList<>();
+        if (redisHelper.hasKey("bz_export_page")) {
+            list = (List<TCmkDisposeExportDTO>) redisHelper.get("bz_export_page");
+        } else {
+            QueryWrapper<TCmkDisposeExportDTO> queryWrapper = new QueryWrapper<>();
+//            queryWrapper.last("limit 200000");
+            list = tCmkDisposeMapper.selectList(queryWrapper);
+            redisHelper.set("bz_export_page", list, 60, TimeUnit.MINUTES);
+        }
+
+        Page<TCmkDisposeExportDTO> page = new Page<>();
+        page.setRecords(list);
+        return page;
+    }
 
     /**
      * 新增
@@ -106,9 +134,6 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
         });
 
     }
-
-    @Value("${ae.saveType}")
-    private String saveType = "";
 
 
     public void openMain(BzAsyncExportLog item, HttpServletResponse response) throws Exception {
@@ -172,6 +197,9 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
                     jsonObject = StrUtil.isBlank(item.getParams()) ? null : JSONObject.parseObject(item.getParams());
                     jsonObject = jsonObject == null ? null : JSONObject.parseObject(JSONObject.toJSONString(jsonObject.get("param")));
                 }
+
+
+
 
                 //给所有的字段设置值
                 if (ObjectUtil.isNotNull(jsonObject)) {
@@ -272,7 +300,7 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
         }
     }
 
-    /**
+   /**
      * 指定输出方法
      *
      * @param item
@@ -283,9 +311,11 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
      * @throws ClassNotFoundException
      * @throws IllegalAccessException
      * @throws InvocationTargetException
-     */
+    */
     private String getFileCode(BzAsyncExportLog item, Class<?> clazz, Object bytes, String fileCode) throws ClassNotFoundException, IllegalAccessException, InvocationTargetException {
+        //获取导出文件路径
         String outHeadPath[] = item.getOutMethodPath().split("\\.");
+        //获取导出文件名称
         String outServiceName = captureName(outHeadPath[0]);
         //处理任务
         String outServicePath = context.getBean(outServiceName).getClass().getName().substring(0, context.getBean(outServiceName).getClass().getName().indexOf("$"));
@@ -310,7 +340,8 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
      * @param bytes
      * @throws IOException
      */
-    private void localExport(BzAsyncExportLog item, byte[] bytes) throws IOException {
+   private void localExport(BzAsyncExportLog item, byte[] bytes) throws IOException {
+        //获取文件名
         String fileName = item.getName() + DateUtil.format(new Date(), "yyyy-MM-dd HH:mm") + ".xlsx";
         //输出到项目路径下
         FileOutputStream outStream = null;
@@ -343,17 +374,17 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
      * @throws ClassNotFoundException
      */
     private void splitListAndExport(Object obj, String name, List returnParam) throws IOException, ClassNotFoundException {
-        //判断返回参数是否大于5000条
+       //判断返回参数是否大于5000条
         if (returnParam.size() > spiltMaxInt) {
 
-            log.info("--------数据大于5000 开始分割sheet ------【{}】",returnParam.size());
+            log.info("--------数据大于5000 开始分割sheet ------【{}】", returnParam.size());
 
             List<List> splitList = new ArrayList<>();
             //每个sheet 最多不能超过5000个 所以需要分割集合
             for (int i = 0; i < returnParam.size(); i += spiltMaxInt) {
                 splitList.add(returnParam.subList(i, Math.min(i + spiltMaxInt, returnParam.size())));
             }
-            log.info("---------数据分割共计 sheet页 【{}个】",splitList.size());
+            log.info("---------数据分割共计 sheet页 【{}个】", splitList.size());
             //创建excel
             ExcelWriter excelWriter = null;
             //判断类型
@@ -362,24 +393,23 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
                 HttpServletResponse httpServletResponse = (HttpServletResponse) obj;
                 excelWriter = EasyExcel.write(httpServletResponse.getOutputStream(), Class.forName(name)).build();
             }
+
             if (obj instanceof File) {
                 log.info("======识别为异步处理========");
                 File file = (File) obj;
                 excelWriter = EasyExcel.write(file, Class.forName(name)).build();
             }
 
-
-            ExcelWriter finalExcelWriter = excelWriter;
-
-
+            // 遍历分割后的list
             for (int i = 0; i < splitList.size(); i++) {
-                WriteSheet writeSheet = EasyExcel.writerSheet(i,"sheet_"+(i+1)).build();
+                // 创建sheet
+                WriteSheet writeSheet = EasyExcel.writerSheet(i, "sheet_" + (i + 1)).build();
 
-                finalExcelWriter.write(splitList.get(i), writeSheet);
+                // 写入数据
+                excelWriter.write(splitList.get(i), writeSheet);
 
-                log.info("分割第【{}个】 完成！",i+1);
+                log.info("分割第【{}个】 完成！", i + 1);
             }
-
             log.info("======================分割完成 开始输出文件======================");
             excelWriter.finish();
         } else {
@@ -406,11 +436,10 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
 //        System.out.println(values.size());
 
 
-
     }
 
     //首字母小写
-    public static String captureName(String name) {
+   public static String captureName(String name) {
         char[] cs = name.toCharArray();
         //已经是小写
         if (cs[0] >= 97) {
@@ -423,12 +452,14 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
 
 
     /**
+     * 反射字段赋值
+     *
      * @param parameter  目标对象class
      * @param o          需要被赋值的目标对象
      * @param jsonObject 参数
      * @throws IllegalAccessException
      */
-    public void setField(Class parameter, Object o, JSONObject jsonObject) throws IllegalAccessException {
+   public void setField(Class parameter, Object o, JSONObject jsonObject) throws IllegalAccessException {
         Field[] fields = parameter.getDeclaredFields();//所有字段
         Field.setAccessible(fields, true);//可以拿到私有变量
         for (int i = 0; i < fields.length; i++) {
@@ -438,6 +469,7 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
                 continue;
             }
             String paraName = field.getName();
+            //判断是否为空
             if (ObjectUtil.isNull(jsonObject.get(paraName)) || StrUtil.isBlank(jsonObject.get(paraName).toString())) {
                 continue;
             }

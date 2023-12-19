@@ -16,7 +16,7 @@ public class AsyncExportExecute {
     @Resource
     private BzAsyncExportLogService bzAsyncExportLogService;
 
-    @Scheduled(cron = "0/1 * * * * ?")
+//    @Scheduled(cron = "0/1 * * * * ?")
     private void task(){
         bzAsyncExportLogService.export();
     }
