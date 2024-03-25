@@ -84,5 +84,9 @@ CREATE TABLE `bz_async_export_log` (
 ) ENGINE=InnoDB AUTO_INCREMENT=94 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='异步导出表'
 ```
 
+2.0版本更新：
+1.增加了分页查询数据接口，导出查询指定方法时，会自动执行分页查询，防止一次性查询大量数据导致数据接口卡死
+2.增加了数据量超过5w时会进行自动sheet分页
+3.增加了可以根据数据库表名，自动生成配置好的导出实体类到指定目录下
 
 
