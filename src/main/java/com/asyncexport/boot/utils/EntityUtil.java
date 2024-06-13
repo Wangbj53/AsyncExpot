@@ -151,7 +151,7 @@ public class EntityUtil {
                 .append("import lombok.Data;\n")
                 .append("import lombok.experimental.Accessors;\n\n\n")
                 .append("@Data\n")
-                .append("@Accessors(chain = true)\n")
+//                .append("@Accessors(chain = true)\n")
                 .append("@TableName(\"").append(tableName).append("\")\n")
                 .append("@HeadFontStyle(bold = BooleanEnum.TRUE, fontHeightInPoints = 10)\n")
                 .append("@HeadRowHeight(value = 25)\n")
