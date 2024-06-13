@@ -12,12 +12,9 @@ import com.alibaba.fastjson.JSONObject;
 import com.asyncexport.boot.base.BaseService;
 import com.asyncexport.boot.entity.BzAsyncExportLog;
 import com.asyncexport.boot.entity.PageQuery;
-import com.asyncexport.boot.entity.TCmkDisposeExportDTO;
 import com.asyncexport.boot.mapper.BzAsyncExportLogMapper;
-import com.asyncexport.boot.mapper.TCmkDisposeMapper;
 import com.asyncexport.boot.utils.RedisHelper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -35,7 +32,6 @@ import java.io.IOException;
 import java.lang.reflect.*;
 import java.net.URLEncoder;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -57,9 +53,6 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
     @Resource
     private RedissonClient redissonClient;
 
-    @Resource
-    TCmkDisposeMapper tCmkDisposeMapper;
-
     @Value("${ae.saveType}")
     private String saveType = "";
 
@@ -69,23 +62,6 @@ public class BzAsyncExportLogService extends BaseService<BzAsyncExportLogMapper,
     private static double spiltMax = 5000.00;
     private static int spiltMaxInt = 5000;
 
-
-
-    public Page<TCmkDisposeExportDTO> getPage(PageQuery<BzAsyncExportLog> pageQuery) {
-        List<TCmkDisposeExportDTO> list = new ArrayList<>();
-        if (redisHelper.hasKey("bz_export_page")) {
-            list = (List<TCmkDisposeExportDTO>) redisHelper.get("bz_export_page");
-        } else {
-            QueryWrapper<TCmkDisposeExportDTO> queryWrapper = new QueryWrapper<>();
-//            queryWrapper.last("limit 200000");
-            list = tCmkDisposeMapper.selectList(queryWrapper);
-            redisHelper.set("bz_export_page", list, 60, TimeUnit.MINUTES);
-        }
-
-        Page<TCmkDisposeExportDTO> page = new Page<>();
-        page.setRecords(list);
-        return page;
-    }
 
     /**
      * 新增
