@@ -13,7 +13,7 @@
 该注解是基于反射加easyexcel实现的注解式导出功能，改注解分为两种模式:同步和异步导出  
 同步模式开箱即用 一行注解解决导出
 
-### 依赖配置
+### 依赖配置 暂未上传至maven
 ```
         <dependency>
             <groupId>com.asyncexport.boot</groupId>
@@ -51,6 +51,21 @@ public class DemoEntity {
     private String age;
  }
 ```
+### 自动生成实体类
+如果不想自己手动去写导出实体类可以使用项目中实现的自动生成 EntityUtil.createClass()方法
+```
+    public static void main(String[] args) throws FileNotFoundException {
+        //实体类输出路径
+        String path = "src/main/java/com/asyncexport/boot/entity/";
+        //数据库配置的 yml位置 用于读取数据库配置 spring.datasource.url。。。。。
+        String ymlPath = "src/main/resources/application.yml";
+        //表名
+        String tableName = "tableName";
+        createClass(path,tableName,ymlPath);
+    }
+```
+![img_2.png](img_2.png)
+
 一个自动生成的 或者 自己系统里的分页接口（如参类型一定要是PageQuery 项目中存在改实体，返回类型可以是Page（mybatisPlus的）类型也可以是list类型）
 ![img_1.png](img_1.png)
 

@@ -47,9 +47,12 @@ public class EntityUtil {
     }
 
     public static void main(String[] args) throws FileNotFoundException {
+        //实体类输出路径
         String path = "src/main/java/com/asyncexport/boot/entity/";
+        //数据库配置的 yml位置 用于读取数据库配置 spring.datasource.url。。。。。
         String ymlPath = "src/main/resources/application.yml";
-        String tableName = "T_CMK_DISPOSE";
+        //表名
+        String tableName = "tableName";
         createClass(path,tableName,ymlPath);
     }
 
