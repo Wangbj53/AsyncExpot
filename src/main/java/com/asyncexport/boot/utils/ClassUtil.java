@@ -7,6 +7,7 @@ package com.asyncexport.boot.utils;
 
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.Modifier;
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
@@ -48,8 +49,13 @@ public class ClassUtil {
                         List<Node> childNodes = method.getChildNodes();
 
                         for (int i = 0; i < childNodes.size(); i++) {
+                            //有序集合 当类型为Modifier时 说明方法上的注解已经读取完毕
+                            if (childNodes.get(i) instanceof Modifier){
+                                break;
+                            }
                             // 遍历每一行数据 遇到基础url类型注解 或者 遇到权限关键字跳出循环
                             try {
+                                //SingleMemberAnnotationExpr类型是URL注解的类型
                                 SingleMemberAnnotationExpr singleMemberAnnotationExpr = (SingleMemberAnnotationExpr) childNodes.get(i);
                                 StringLiteralExpr memberValue = (StringLiteralExpr) singleMemberAnnotationExpr.getMemberValue();
                                 System.out.println("url: /" + url + memberValue.getValue());
